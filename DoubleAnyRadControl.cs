@@ -1,6 +1,7 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
 using HutongGames.PlayMaker;
 using HutongGames.PlayMaker.Actions;
 using ModCommon.Util;
@@ -406,6 +407,24 @@ namespace DoubleAnyRad2 {
 			_attackCommands2.RemoveAction("CCW Repeat", 0);
 			_attackCommands2.GetAction<FloatAdd>("CW Spawn", 2).add.Value = -15f;
 			_attackCommands2.GetAction<FloatAdd>("CCW Spawn", 2).add.Value = 15f;
+			Log("Fixing nail fan pool sharing between bosses");
+			GameObject nailPrefab = _attackCommands.GetAction<SpawnObjectFromGlobalPool>("CW Spawn", 0).gameObject.Value;
+			GameObject nailPrefabBoss1 = UnityEngine.Object.Instantiate(nailPrefab);
+			nailPrefabBoss1.name = "Radiant Nail Boss1";
+			nailPrefabBoss1.SetActive(false);
+			ObjectPool.CreatePool(nailPrefabBoss1, 500);
+			_attackCommands.GetAction<SpawnObjectFromGlobalPool>("CW Spawn", 0).gameObject.Value = nailPrefabBoss1;
+			_attackCommands.GetAction<SpawnObjectFromGlobalPool>("CCW Spawn", 0).gameObject.Value = nailPrefabBoss1;
+			GameObject nailPrefabBoss2 = UnityEngine.Object.Instantiate(nailPrefab);
+			nailPrefabBoss2.name = "Radiant Nail Boss2";
+			nailPrefabBoss2.SetActive(false);
+			ReplaceFsmEvent(nailPrefabBoss2, "FAN ATTACK CW", "FAN ATTACK CW 2");
+			ReplaceFsmEvent(nailPrefabBoss2, "FAN ATTACK CCW", "FAN ATTACK CCW 2");
+			ObjectPool.CreatePool(nailPrefabBoss2, 500);
+			_attackCommands2.GetAction<SpawnObjectFromGlobalPool>("CW Spawn", 0).gameObject.Value = nailPrefabBoss2;
+			_attackCommands2.GetAction<SpawnObjectFromGlobalPool>("CCW Spawn", 0).gameObject.Value = nailPrefabBoss2;
+			_attackCommands2.GetAction<SendEventByName>("CW Fire", 0).sendEvent = "FAN ATTACK CW 2";
+			_attackCommands2.GetAction<SendEventByName>("CCW Fire", 0).sendEvent = "FAN ATTACK CCW 2";
 			Log("Modifying Beam Sweep");
 			FsmEventTarget bs1target = new FsmEventTarget();
 			bs1target.target = FsmEventTarget.EventTarget.GameObject;
@@ -1076,6 +1095,24 @@ namespace DoubleAnyRad2 {
 				delay = delay,
 				everyFrame = false
 			}, index);
+		}
+
+		private static void ReplaceFsmEvent(GameObject obj, string oldEventName, string newEventName) {
+			FsmEvent newEvent = FsmEvent.GetFsmEvent(newEventName);
+			foreach (PlayMakerFSM fsm in obj.GetComponents<PlayMakerFSM>()) {
+				foreach (FsmState state in fsm.FsmStates) {
+					foreach (FsmTransition t in state.Transitions) {
+						if (t.EventName == oldEventName) {
+							t.FsmEvent = newEvent;
+						}
+					}
+				}
+				foreach (FsmTransition t in fsm.Fsm.GlobalTransitions) {
+					if (t.EventName == oldEventName) {
+						t.FsmEvent = newEvent;
+					}
+				}
+			}
 		}
 
 		private static FsmEvent GetFsmEventByName(PlayMakerFSM fsm, string eventName)
